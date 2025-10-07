@@ -20,67 +20,6 @@ type DataPoint = {
   delta: number;
 };
 
-type AttentionData = {
-  time: number;
-  attention: number;
-};
-
-type MeditationData = {
-  time: number;
-  meditation: number;
-};
-
-type BrainwaveData = {
-  time: number;
-  alpha: number;
-  beta: number;
-  gamma: number;
-  theta: number;
-  delta: number;
-};
-
-const mockAttentionCSV: AttentionData[] = [
-  { time: 0, attention: 60 },
-  { time: 1, attention: 62 },
-  { time: 2, attention: 64 },
-  { time: 3, attention: 66 },
-  { time: 4, attention: 68 },
-  { time: 5, attention: 70 },
-  { time: 6, attention: 72 },
-  { time: 7, attention: 74 },
-  { time: 8, attention: 76 },
-  { time: 9, attention: 78 },
-  { time: 10, attention: 80 },
-];
-
-const mockMeditationCSV: MeditationData[] = [
-  { time: 0, meditation: 45 },
-  { time: 1, meditation: 47 },
-  { time: 2, meditation: 49 },
-  { time: 3, meditation: 51 },
-  { time: 4, meditation: 53 },
-  { time: 5, meditation: 55 },
-  { time: 6, meditation: 57 },
-  { time: 7, meditation: 59 },
-  { time: 8, meditation: 61 },
-  { time: 9, meditation: 63 },
-  { time: 10, meditation: 65 },
-];
-
-const mockBrainwavesCSV: BrainwaveData[] = [
-  { time: 0, alpha: 25, beta: 30, gamma: 20, theta: 18, delta: 15 },
-  { time: 1, alpha: 27, beta: 32, gamma: 21, theta: 20, delta: 16 },
-  { time: 2, alpha: 26, beta: 31, gamma: 22, theta: 19, delta: 17 },
-  { time: 3, alpha: 28, beta: 34, gamma: 23, theta: 21, delta: 18 },
-  { time: 4, alpha: 30, beta: 36, gamma: 24, theta: 22, delta: 19 },
-  { time: 5, alpha: 32, beta: 38, gamma: 25, theta: 23, delta: 20 },
-  { time: 6, alpha: 31, beta: 40, gamma: 26, theta: 24, delta: 21 },
-  { time: 7, alpha: 33, beta: 42, gamma: 27, theta: 25, delta: 22 },
-  { time: 8, alpha: 35, beta: 44, gamma: 28, theta: 26, delta: 23 },
-  { time: 9, alpha: 37, beta: 46, gamma: 29, theta: 27, delta: 24 },
-  { time: 10, alpha: 39, beta: 48, gamma: 30, theta: 28, delta: 25 },
-];
-
 const calculateEMA = (data: number[], N: number) => {
   const alpha = 2 / (N + 1);
   let ema = data[0];
@@ -147,19 +86,10 @@ function CircularProgress({ label, value }: { label: string; value: number }) {
 }
 
 export default function App() {
-  const [stream, setStream] = useState<DataPoint[]>(() =>
-    Array.from({ length: 30 }, (_, i) => ({
-      time: i,
-      alpha: Math.random() * 80,
-      beta: Math.random() * 80,
-      gamma: Math.random() * 80,
-      theta: Math.random() * 80,
-      delta: Math.random() * 80,
-    }))
-  );
+  const [stream, setStream] = useState<DataPoint[]>([]);
 
-  const [attention, setAttention] = useState<number>(60);
-  const [meditation, setMeditation] = useState<number>(45);
+  const [attention, setAttention] = useState<number>(0);
+  const [meditation, setMeditation] = useState<number>(0);
   const [playing, setPlaying] = useState<number | null>(null);
 
   const lineColors: Record<string, string> = {
@@ -178,49 +108,60 @@ export default function App() {
     delta: true,
   });
 
-  // const fetchCSV = async (url: string) => {
-  //   return new Promise<any[]>((resolve, reject) => {
-  //     Papa.parse(url, {
-  //       download: true,
-  //       complete: (result) => {
-  //         resolve(result.data);
-  //       },
-  //       error: reject,
-  //     });
-  //   });
-  // };
-  // Replace fetchCSV with mock data for testing purposes
-
-  const fetchCSV = (url: string): Promise<AttentionData[] | MeditationData[] | BrainwaveData[] | undefined> => {
-  console.log(url)
-  if (url === "attention.csv") return Promise.resolve(mockAttentionCSV);
-  if (url === "meditation.csv") return Promise.resolve(mockMeditationCSV);
-  if (url === "brainwaves.csv") return Promise.resolve(mockBrainwavesCSV);
-  return Promise.resolve(undefined);
-  };
+ const fetchCSV = async (url: string): Promise<any[]> => {
+  return new Promise((resolve, reject) => {
+    Papa.parse(url, {
+      download: true,
+      header: true,       // <-- important
+      dynamicTyping: true, // converts "25" -> 25 automatically
+      complete: (result) => resolve(result.data),
+      error: (err) => reject(err),
+    });
+  });
+};
 
   const loadStreamData = async () => {
     const brainwaveData = await fetchCSV("brainwaves.csv");
+    debugger
+  if (!brainwaveData || brainwaveData.length === 0) return;
 
-    // Assuming brainwaves.csv has columns: time, alpha, beta, gamma, theta, delta
-    const newStream: DataPoint[] = brainwaveData!.map((row: any) => ({
-      time: row.time,
-      alpha: row.alpha,
-      beta: row.beta,
-      gamma: row.gamma,
-      theta: row.theta,
-      delta: row.delta,
+  // Filter out empty rows
+  const validData = brainwaveData.filter(
+    (row: any) => row.time && row.time.trim() !== ""
+  );
+
+  // Convert last time in stream to milliseconds
+  const lastTime = stream.length
+    ? new Date(stream[stream.length - 1].time).getTime()
+    : 0;
+
+  const newPoints: DataPoint[] = validData
+    .filter((row: any) => new Date(row.time).getTime() > lastTime)
+    .map((row: any) => ({
+      time: row.time, // Keep as string if you want to display on x-axis
+      alpha: Number(row.alpha),
+      beta: Number(row.beta),
+      gamma: Number(row.gamma),
+      theta: Number(row.theta),
+      delta: Number(row.delta),
     }));
 
-    setStream((prevStream) => [...prevStream.slice(-99), ...newStream]);
-  };
+  if (newPoints.length === 0) return;
+
+  const updated = [...stream, ...newPoints]; // new array
+  const updated200 = updated.slice(-200); // new array
+  // Append to stream and keep last 200 points
+  setStream((_) => updated200);
+
+};
+
 
   const loadAttentionData = async () => {
     const attentionData = await fetchCSV("attention.csv");
 
     // Get the last 5 data points for attention
     const lastFiveAttention = attentionData!
-      .slice(-5)
+      .slice(-6).slice(0,4)
       .map((row: any) => row.attention);
 
     // If there are fewer than 5 data points, calculate the average
@@ -241,7 +182,7 @@ export default function App() {
 
     // Get the last 5 data points for meditation
     const lastFiveMeditation = meditationData!
-      .slice(-5)
+      .slice(-6).slice(0,4)
       .map((row: any) => row.meditation);
 
     // If there are fewer than 5 data points, calculate the average
@@ -257,43 +198,6 @@ export default function App() {
     }
   };
 
-  // useEffect(() => {
-  //   const t = setInterval(() => {
-  //     setStream((s) => {
-  //       const nextTime = s.length ? s[s.length - 1].time + 1 : 0;
-  //       const newPoint: DataPoint = {
-  //         time: nextTime,
-  //         alpha: Math.random() * 100,
-  //         beta: Math.random() * 100,
-  //         gamma: Math.random() * 100,
-  //         theta: Math.random() * 100,
-  //         delta: Math.random() * 100,
-  //       };
-  //       return [...s.slice(-99), newPoint];
-  //     });
-  //   }, 1000);
-  //   return () => clearInterval(t);
-  // }, []);
-
-  // useEffect(() => {
-  //   const id = setInterval(() => {
-  //     setStream((s) => {
-  //       const last10 = s.slice(-10);
-  //       if (!last10.length) return s;
-
-  //       const avgBeta = last10.reduce((a, p) => a + p.beta, 0) / last10.length;
-  //       const avgGamma = last10.reduce((a, p) => a + p.gamma, 0) / last10.length;
-  //       const avgAlpha = last10.reduce((a, p) => a + p.alpha, 0) / last10.length;
-  //       const avgTheta = last10.reduce((a, p) => a + p.theta, 0) / last10.length;
-
-  //       setAttention(Math.round(Math.min(100, (avgBeta + avgGamma) / 2)));
-  //       setMeditation(Math.round(Math.min(100, (avgAlpha + avgTheta) / 2)));
-
-  //       return s;
-  //     });
-  //   }, 10000);
-  //   return () => clearInterval(id);
-  // }, []);
   useEffect(() => {
     // Initial data load
     loadStreamData();
@@ -308,11 +212,11 @@ export default function App() {
     // Set interval to update attention and meditation every 2 seconds
     const attentionInterval = setInterval(() => {
       loadAttentionData();
-    }, 2000); // 2 seconds interval for attention data
+    }, 500); // 2 seconds interval for attention data
 
     const meditationInterval = setInterval(() => {
       loadMeditationData();
-    }, 2000); // 2 seconds interval for meditation data
+    }, 500); // 2 seconds interval for meditation data
 
     // Cleanup on component unmount
     return () => {
@@ -322,7 +226,9 @@ export default function App() {
     };
   }, []); // Empty array ensures this effect runs once when the component mounts
 
-  const chartData = stream.slice(-30);
+  // const chartData = stream;
+  const chartData = stream.slice(-200);
+
   // const chartData = useMemo(() => stream.slice(-30), [stream]);
 
   const sounds = [
@@ -393,7 +299,12 @@ export default function App() {
               <ResponsiveContainer>
                 <LineChart data={chartData}>
                   <CartesianGrid stroke="#222" strokeDasharray="3 3" />
-                  <XAxis dataKey="time" stroke="#888" tick={{ fontSize: 12 }} />
+                  <XAxis
+                    dataKey="time"
+                    domain={['dataMin', 'dataMax']}
+                    type="number"
+                    tick={{ fontSize: 12 }}
+                    />
                   <YAxis stroke="#888" />
                   <Tooltip />
                   {Object.entries(lineColors).map(([line, color]) =>
