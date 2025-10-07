@@ -5,15 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "start": "vite",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/papaparse": "^5.3.16",
     "framer-motion": "^12.23.22",
     "lucide-react": "^0.544.0",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
+    "papaparse": "^5.5.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-is": "^19.2.0",
     "recharts": "^3.2.1"
   },
   "devDependencies": {
