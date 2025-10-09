@@ -108,6 +108,12 @@ export default function App() {
     delta: true,
   });
 
+  // keep a ref to the visibleLines so callbacks/readers don't close over stale state
+  const visibleLinesRef = useRef(visibleLines);
+  useEffect(() => {
+    visibleLinesRef.current = visibleLines;
+  }, [visibleLines]);
+
   const MAX_POINTS = 200;
 
   // Initialize rawDataRef with empty arrays (one per series name)
@@ -115,19 +121,52 @@ export default function App() {
     rawDataRef.current = SERIES_NAMES.map(() => []);
   }, []);
 
-  const buildDisplayData = () => {
-    // Build arrays where hidden series are replaced with NaN so uPlot will not draw them
-    const display = rawDataRef.current.map((arr, idx) => {
-      if (idx === 0) return arr; // x axis (time) always present
+  const buildDisplayData = (overrideVis?: Record<string, boolean>) => {
+    // prefer an explicit override (used when toggling), otherwise use the latest ref
+    const vis = overrideVis ?? visibleLinesRef.current ?? visibleLines;
+
+    // ensure we always return arrays with the same length as the x-axis
+    const len = rawDataRef.current[0] ? rawDataRef.current[0].length : 0;
+
+    // If there's no x axis data yet, return the initial shape uPlot expects (so toggles won't break)
+    if (len === 0) {
+      return SERIES_NAMES.map((s, i) => (i === 0 ? [] : []));
+    }
+
+    return rawDataRef.current.map((arr, idx) => {
+      if (idx === 0) return arr; // x axis (time)
       const name = SERIES_NAMES[idx];
-      if (name && !visibleLines[name]) {
-        // return an array of NaNs with same length
-        return arr.map(() => NaN);
-      }
+      if (name && !vis[name]) return new Array(len).fill(NaN);
+      // protect against arrays of wrong length by slicing/padding
+      if (arr.length > len) return arr.slice(-len);
+      if (arr.length < len) return [...new Array(len - arr.length).fill(NaN), ...arr];
       return arr;
     });
+  };
 
-    return display;
+  const computeYRange = (display?: number[][]) => {
+    const disp = display ?? buildDisplayData();
+    if (!disp || disp.length === 0 || disp[0].length === 0) return null;
+
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+
+    // disp[0] is time; iterate through series 1..n
+    for (let i = 1; i < disp.length; i++) {
+      const arr = disp[i];
+      for (let v of arr) {
+        if (Number.isFinite(v)) {
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+      }
+    }
+
+    if (min === Number.POSITIVE_INFINITY || max === Number.NEGATIVE_INFINITY) return null;
+
+    // zoom in a bit: apply 10% padding
+    const padding = (max - min) * 0.1 || 1;
+    return { min: min - padding, max: max + padding };
   };
 
   const ensureChart = () => {
@@ -148,7 +187,7 @@ export default function App() {
     const opts: any = {
       width: chartRef.current.clientWidth || 600,
       height: 320,
-      scales: { x: { time: true } },
+      scales: { x: { time: true }, y: { auto: true } },
       series,
       axes: [
         {
@@ -159,9 +198,7 @@ export default function App() {
         { stroke: "#333" },
       ],
       hooks: {},
-      legend: {
-        show: false,
-      },
+      legend: { show: false },
     };
 
     // initial minimal data: one point so uPlot can instantiate safely
@@ -236,8 +273,21 @@ export default function App() {
     const display = buildDisplayData();
 
     // Update uPlot in-place without recreating it
-    if (uRef.current) {
+    if (uRef.current && rawDataRef.current[0].length > 0) {
       uRef.current.setData(display as any);
+
+      // compute a tighter y-range and apply it so the plot looks "zoomed in"
+      const yRange = computeYRange(display as any);
+      if (yRange && typeof uRef.current.setScale === "function") {
+        try {
+          // setScale is available on uPlot instances; set a tighter y-range
+          // @ts-ignore
+          uRef.current.setScale("y", { min: yRange.min, max: yRange.max });
+        } catch (e) {
+          // if setScale isn't available in some builds, ignore gracefully
+          // console.warn(e);
+        }
+      }
     }
   };
 
@@ -297,16 +347,28 @@ export default function App() {
   }, []);
 
   const toggleLine = (line: string) => {
+    // If there's no data yet, just toggle state (don't call setData) — prevents creating empty arrays
+    if (!rawDataRef.current[0] || rawDataRef.current[0].length === 0) {
+      setVisibleLines((v) => ({ ...v, [line]: !v[line] }));
+      return;
+    }
+
+    // update state and immediately update uPlot display using the new visibility map
     setVisibleLines((v) => {
       const next = { ...v, [line]: !v[line] };
-      // Immediately update displayed uPlot data so the change is instant
-      const display = rawDataRef.current.map((arr, idx) => {
-        if (idx === 0) return arr;
-        const name = SERIES_NAMES[idx];
-        if (name && !next[name]) return arr.map(() => NaN);
-        return arr;
-      });
-      if (uRef.current) uRef.current.setData(display as any);
+      const display = buildDisplayData(next);
+      if (uRef.current) {
+        uRef.current.setData(display as any);
+
+        // after updating data, compute and apply tighter y-range so plot appears zoomed in
+        const yRange = computeYRange(display as any);
+        if (yRange && typeof uRef.current.setScale === "function") {
+          try {
+            // @ts-ignore
+            uRef.current.setScale("y", { min: yRange.min, max: yRange.max });
+          } catch (e) {}
+        }
+      }
       return next;
     });
   };
