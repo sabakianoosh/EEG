@@ -54,8 +54,8 @@ def write_meditation(period=0.5):
 
 
 # Create and start threads
-t1 = threading.Thread(target=write_attention, args=(0.6,), daemon=True)
-t2 = threading.Thread(target=write_brainwaves, args=(0.9,), daemon=True)
+t2 = threading.Thread(target=write_brainwaves, args=(0.6,), daemon=True)
+t1 = threading.Thread(target=write_attention, args=(0.9,), daemon=True)
 t3 = threading.Thread(target=write_meditation, args=(0.9,), daemon=True)
 
 t1.start()
