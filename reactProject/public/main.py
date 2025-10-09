@@ -31,9 +31,9 @@ def init_csv():
         csv.writer(f).writerow(["time", "meditation"])
     with open(CSV_BRAINWAVES, 'w', newline='') as f:
         csv.writer(f).writerow(["time", "delta", "theta",
-                                "Low Alpha", "alpha",
-                                "Low Beta", "beta",
-                                "Low Gamma", "gamma"])
+                                "low_alpha", "high_alpha",
+                                "low_beta", "high_beta",
+                                "low_gamma", "high_gamma"])
 
 # ------------------ Packet Parser ------------------
 def parse_payload(code, payload):
