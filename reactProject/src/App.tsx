@@ -13,9 +13,12 @@ import Papa from "papaparse";
 
 type DataPoint = {
   time: number;
-  alpha: number;
-  beta: number;
-  gamma: number;
+  high_alpha: number;
+  low_alpha: number;
+  high_beta: number;
+  low_beta: number;
+  high_gamma: number;
+  low_gamma: number;
   theta: number;
   delta: number;
 };
@@ -93,17 +96,23 @@ export default function App() {
   const [playing, setPlaying] = useState<number | null>(null);
 
   const lineColors: Record<string, string> = {
-    alpha: "#ff6bdc",
-    beta: "#00e5ff",
-    gamma: "#ff1493",
+    high_alpha: "#ff6bdc",
+    low_alpha: "#84ec5dff",
+    high_beta: "#00e5ff",
+    low_beta: "#fff236ff",
+    high_gamma: "#ff1493",
+    low_gamma: "#1cdaadff",
     theta: "#9370db",
     delta: "#4169e1",
   };
 
   const [visibleLines, setVisibleLines] = useState<Record<string, boolean>>({
-    alpha: true,
-    beta: true,
-    gamma: true,
+    high_alpha: true,
+    low_alpha: true,
+    high_beta: true,
+    low_beta: true,
+    high_gamma: true,
+    low_gamma: true,
     theta: true,
     delta: true,
   });
@@ -139,9 +148,12 @@ export default function App() {
     .filter((row: any) => new Date(row.time).getTime() > lastTime)
     .map((row: any) => ({
       time: row.time, // Keep as string if you want to display on x-axis
-      alpha: Number(row.alpha),
-      beta: Number(row.beta),
-      gamma: Number(row.gamma),
+      high_alpha: Number(row.high_alpha),
+      low_alpha: Number(row.high_alpha),
+      high_beta: Number(row.high_beta),
+      low_beta: Number(row.high_beta),
+      high_gamma: Number(row.high_gamma),
+      low_gamma: Number(row.low_gamma),
       theta: Number(row.theta),
       delta: Number(row.delta),
     }));
@@ -151,7 +163,7 @@ export default function App() {
   const updated = [...stream, ...newPoints]; // new array
   const updated200 = updated.slice(-200); // new array
   // Append to stream and keep last 200 points
-  setStream((_) => updated200);
+  setStream(updated200);
 
 };
 
@@ -301,9 +313,12 @@ export default function App() {
                   <CartesianGrid stroke="#222" strokeDasharray="3 3" />
                   <XAxis
                     dataKey="time"
-                    domain={['dataMin', 'dataMax']}
-                    type="number"
+                    type="category"
                     tick={{ fontSize: 12 }}
+                  /><XAxis
+                      dataKey="time"
+                      type="category"
+                      tick={{ fontSize: 12 }}
                     />
                   <YAxis stroke="#888" />
                   <Tooltip />
