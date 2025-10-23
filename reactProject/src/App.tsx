@@ -181,7 +181,7 @@ export default function App() {
   // const fetchCSV = async (url: string) => {
   //   return new Promise<any[]>((resolve, reject) => {
   //     Papa.parse(url, {
-  //       download: true,
+  //       kdownload: true,
   //       complete: (result) => {
   //         resolve(result.data);
   //       },
